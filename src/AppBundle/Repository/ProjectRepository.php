@@ -37,7 +37,6 @@ class ProjectRepository extends \Doctrine\ORM\EntityRepository
         return $qb->getResult();
     }
 
-
     /**
      * return number of project by status $status
      * @return mixed
@@ -72,6 +71,35 @@ class ProjectRepository extends \Doctrine\ORM\EntityRepository
         return $qb->getResult();
     }
 
+    /**
+     * return all project with status 1 and 2 for one user
+     * @return mixed
+     */
+    public function getProjectStatusNotFinishForOneUser($idUser) {
+        $qb = $this
+            ->createQueryBuilder('p')
+            ->select('COUNT(p)')
+            ->setParameter('author', $idUser)
+            ->where('p.status = 2 or p.status = 1')
+            ->andWhere('p.author = :author')
+            ->getQuery();
+        return $qb->getSingleScalarResult();
+    }
+
+    /**
+     * @param $text
+     * @return mixed
+     */
+    public function getSlugIsUnique($text) {
+        $text = $text . '%';
+        $qb = $this
+            ->createQueryBuilder('p')
+            ->setParameter('slug', $text)
+            ->select('count(p)')
+            ->where('p.slug LIKE :slug')
+            ->getQuery();
+        return $qb->getSingleScalarResult();
+    }
 
 }
 

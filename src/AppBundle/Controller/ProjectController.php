@@ -22,7 +22,6 @@ use Symfony\Component\HttpFoundation\File\File;
 
 
 /**
- * Admin controller.
  *
  * @Route("project")
  * @Security("user.getIsActive() === true")
@@ -40,8 +39,20 @@ class ProjectController extends Controller
      */
     public function newAction(Request $request, FileUploader $fileUploader, SlugService $slugService, EmailService $emailService)
     {
-        $project = new Project();
         $user = $this->get('security.token_storage')->getToken()->getUser();
+        $em = $this->getDoctrine()->getManager();
+        $nbProjectNotFinish = $em->getRepository('AppBundle:Project')->getProjectStatusNotFinishForOneUser($user->getId());
+
+        if ($nbProjectNotFinish > 0) {
+            $this->addFlash(
+                'errorNotification',
+                'Vous avez déjà un projet en cours !'
+            );
+            return $this->redirectToRoute('UserProfil', array('slug' => $user->getSlug()));
+        }
+
+        $project = new Project();
+
         $form = $this->createForm('AppBundle\Form\ProjectType', $project);
         $form->remove('author');
         $form->remove('startingDate');
@@ -57,7 +68,7 @@ class ProjectController extends Controller
             $file = $project->getPhoto();
             $fileName = $fileUploader->upload($file, "photoProject");
             $project->setPhoto($fileName);
-            $project->setSlug($slugService->slugify($project->getTitle()));
+            $project->setSlug($slugService->slugify($project->getTitle(), 'project'));
             $project->setAuthor($user);
 
             $em = $this->getDoctrine()->getManager();
@@ -160,7 +171,7 @@ class ProjectController extends Controller
                 $project->setPhoto($photoTemp);
             }
 
-            $project->setSlug($slugService->slugify($project->getTitle()));
+            $project->setSlug($slugService->slugify($project->getTitle(), 'project'));
             $this->getDoctrine()->getManager()->flush();
             return $this->redirectToRoute('project_show', array('slug' => $project->getSlug()));
         }
@@ -208,8 +219,8 @@ class ProjectController extends Controller
         return $this->createFormBuilder()
             ->setAction($this->generateUrl('project_delete', array('slug' => $project->getSlug())))
             ->setMethod('DELETE')
-            ->getForm()
-        ;
+            ->getForm();
+
     }
 
     /**

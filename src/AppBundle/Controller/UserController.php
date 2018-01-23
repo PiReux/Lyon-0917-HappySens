@@ -33,12 +33,11 @@ class UserController extends Controller
      */
     public function showUserAction(User $user, StatusProject $statusProject)
     {
-        if (null !== $user->getAuthorProject()) {
-            $contact = $user->getAuthorProject()->getStatus();
-            $statusTwig = $statusProject->getStatusTwig($contact);
-        } else {
-            $statusTwig = [];
+        $projectsAuthor = $user->getAuthorProject();
+        if (null !== count($projectsAuthor)) {
+            $projectsAuthor = $statusProject->getProjectsWithStatus($projectsAuthor);
         }
+
         $projects = $user->getTeams();
         if (null !== count($projects)) {
             $projects = $statusProject->getProjectsWithStatus($projects);
@@ -48,8 +47,8 @@ class UserController extends Controller
 
         $pageTrueShowUser = $this->render('pages/In/collaborators/profilEmploye.html.twig', [
             'user' => $user,
-            'statusTwig' => $statusTwig,
             'projects' => $projects,
+            'projectsAuthor' => $projectsAuthor,
         ]);
 
         //TODO à tester => redirection à faire pour éviter le message d'erreur
@@ -85,9 +84,10 @@ class UserController extends Controller
                         return $pageTrueShowUser;
                     }
                 }
-                throw new AccessDeniedException("Vous n'êtes pas autorisé à vous rendre sur cette page");
-//                return $this->redirectToRoute('profilHappyCoach', array('slug' => $this->getUser()->getSlug()));
+
             }
+            throw new AccessDeniedException("Vous n'êtes pas autorisé à vous rendre sur cette page");
+//                return $this->redirectToRoute('profilHappyCoach', array('slug' => $this->getUser()->getSlug()));
         }
         return $pageTrueShowUser;
     }
@@ -126,7 +126,7 @@ class UserController extends Controller
                 $projects[$i]['status'] =  $twigStatus;
             }
         }
-        $trueViewCompany = $this->render('pages/In/company/profilCompany.html.twig', [
+         $trueViewCompany = $this->render('pages/In/company/profilCompany.html.twig', [
             'company' => $company,
             'nbHappySalarie' => $nbHappySalarie,
             'skillInCompany' => $skillInCompany,
@@ -137,6 +137,7 @@ class UserController extends Controller
             ]);
         // securité pour HappyCoach
         //TODO refactor with request
+
         if ($user->getStatus() === User::ROLE_HAPPYCOACH) {
             foreach ($user->getHappyCoachRef() as $project) {
                 $idCompanyRef = $project->getAuthor()->getCompany()->getId();
@@ -149,10 +150,11 @@ class UserController extends Controller
                 if ($idCompanyRef === $company->getId()) {
                     return $trueViewCompany;
                 }
-                throw new AccessDeniedException("Vous n'êtes pas autorisé à vous rendre sur cette page");
-//                return $this->redirectToRoute('profilHappyCoach', array('slug' => $user->getSlug()));
             }
+            throw new AccessDeniedException("Vous n'êtes pas autorisé à vous rendre sur cette page");
+//                return $this->redirectToRoute('profilHappyCoach', array('slug' => $user->getSlug()));
         }
+
         return $trueViewCompany;
     }
 
@@ -247,7 +249,7 @@ class UserController extends Controller
             } else {
                 $user->setPassword($tempPassword);
             }
-            $user->setSlug($slugService->slugify($user->getFirstName() . $user->getLastName()));
+            $user->setSlug($slugService->slugify($user->getFirstName() . $user->getLastName(), 'user'));
             if ($user->getIsActive() == false) {
                 $user->setIsActive(true);
             }
@@ -312,7 +314,7 @@ class UserController extends Controller
                 unlink($fileUploader->getDirectory("photoCompany") . '/' . $company->getLogo());
                 $company->setLogo($logoName);
             }
-            $company->setSlug($slugService->slugify($company->getName()));
+            $company->setSlug($slugService->slugify($company->getName(), 'company'));
             $this->getDoctrine()->getManager()->flush();
             if ($this->getUser()->getIsActive() == false) {
                 return $this->redirectToRoute('User_edit', array('slug' => $this->getUser()->getSlug()));
@@ -455,9 +457,9 @@ class UserController extends Controller
 
     /**
      *
-     * Creates a new collaborater entity.
+     * Creates a new collaborator entity.
      *
-     * @Route("/newCollaborater", name="newCollaborater")
+     * @Route("/newCollaborator", name="newCollaborator")
      * @Method({"GET", "POST"})
      * @Security("has_role('ROLE_COMPANY')")
      *
@@ -479,15 +481,13 @@ class UserController extends Controller
         $form->handleRequest($request);
 
         if ($form->isSubmitted() && $form->isValid()) {
-            $today = new \DateTime();
-            $temp = $today->getTimestamp() - 1515703308; // 1515703308 = Timestamp date created line so 2018/01/12
             $passwordNotEncoder = bin2hex(random_bytes(5));
             $password = $passwordEncoder->encodePassword($user, $passwordNotEncoder);
             $user->setPassword($password);
             $user->setStatus(User::ROLE_EMPLOYE);
             $user->setIsActive(0);
             $user->setCompany($company);
-            $user->setSlug($slugService->slugify($user->getFirstName() . ' ' . $user->getLastName() . ' ' . $temp));
+            $user->setSlug($slugService->slugify($user->getFirstName() . ' ' . $user->getLastName() . ' ', 'user'));
             $em = $this->getDoctrine()->getManager();
             $em->persist($user);
             $em->flush();
@@ -496,8 +496,7 @@ class UserController extends Controller
             return $this->redirectToRoute('UserProfil', array('slug' => $user->getSlug()));
         }
 
-
-        return $this->render('pages/In/company/newCollaborater.html.twig', array(
+        return $this->render('newCollaborator.html.twig', array(
             'user' => $user,
             'form' => $form->createView(),
         ));
